@@ -117,7 +117,7 @@ def main() -> int:
                 mlflow.log_figure(_pred_vs_actual(y_test, test_preds, name), "plots/pred_vs_actual.png")
                 plt.close("all")
                 mlflow.sklearn.log_model(model, "model", signature=infer_signature(X_test, test_preds),
-                                         input_example=X_test.head(3),skops_trusted_types=["numpy.dtype","sklearn.tree._tree.Tree"],)
+                                         input_example=X_test.head(3),serialization_format="cloudpickle")
                 results.append({"name": name, "run_id": run.info.run_id, "metrics": metrics,
                                 "test_preds": test_preds})
                 print(f"[{name}] R2={metrics['r2']:.4f} MAE={metrics['mae']:.4f} RMSE={metrics['rmse']:.4f}")

@@ -1,0 +1,57 @@
+# make up  ->  MLflow :5000 | API :8000 | UI :8501 | Prometheus :9090 | Grafana :3000
+# make train-docker ->  trainer logs to MLflow, promotes a champion, exports ./models (API picks it up on restart)
+services:
+  mlflow:
+    build: { context: ., dockerfile: docker/Dockerfile.mlflow }
+    ports: ["5000:5000"]
+    volumes: ["mlflow-data:/mlflow"]
+
+  trainer:
+    profiles: ["train"]
+    build: { context: ., dockerfile: docker/Dockerfile.train }
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data:ro
+    depends_on: [mlflow]
+
+  api:
+    build: { context: . }
+    ports: ["8000:8080"]
+    environment:
+      ENABLE_SIMULATION: "true"
+    volumes:
+      - ./models:/opt/ml/model:ro
+      - api-logs:/app/logs
+
+  ui:
+    build: { context: ., dockerfile: docker/Dockerfile.ui }
+    ports: ["8502:8501"]
+    environment:
+      API_URL: http://api:8080
+      PREDICT_BACKEND: fastapi
+    depends_on: [api]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports: ["9090:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    depends_on: [api]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+
+volumes:
+  mlflow-data:
+  api-logs:

@@ -1,0 +1,21 @@
+groups:
+  - name: model-health
+    rules:
+      - alert: ModelInputDrift
+        expr: mh_drift_level == 2
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Significant input/prediction drift (PSI > 0.25) - consider retraining"
+      - alert: HighInferenceLatency
+        expr: histogram_quantile(0.95, sum(rate(mh_inference_latency_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "p95 inference latency above 500 ms"
+      - alert: PredictionErrors
+        expr: sum(rate(mh_errors_total[5m])) > 0.1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "API is returning errors"

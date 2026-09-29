@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+mlruns/
+mlflow.db
+build/
+logs/*
+!logs/.gitkeep
+models/*
+!models/.gitkeep
+.env
+.DS_Store

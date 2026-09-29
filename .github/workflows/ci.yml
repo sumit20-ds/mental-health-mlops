@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-train-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-*.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Unit + API tests
+        run: pytest -q
+
+      - name: Train (quick) - exercises MLflow tracking, registry, quality gate, export
+        run: python -m src.train --quick --min-r2 0.5
+
+      - name: Build serving image
+        run: docker build -t mh-api:ci .
+
+      - name: Container smoke test (same contract SageMaker uses)
+        run: |
+          docker run -d --name api -p 8080:8080 -v "$PWD/models:/opt/ml/model:ro" mh-api:ci serve
+          for i in $(seq 1 30); do curl -sf localhost:8080/ping && break || sleep 2; done
+          curl -sf localhost:8080/health
+          curl -sf -X POST localhost:8080/invocations -H 'Content-Type: application/json' \
+            -d '{"Age":21,"Gender":"Female","Country":"India","Academic_Level":"Undergraduate","Most_Used_Platform":"Instagram","Purpose_Of_Use":"Entertainment","Avg_Daily_Usage_Hours":4.5,"Daily_Unlocks":150,"Study_Hours":3.0,"Physical_Activity_Hours":1.5,"Sleep_Hours_Per_Night":7.0,"Stress_Level":"Medium"}'
+          curl -sf localhost:8080/metrics | grep -q mh_predictions_total
+          docker logs api --tail 20
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: training-summary
+          path: models/training_summary.json

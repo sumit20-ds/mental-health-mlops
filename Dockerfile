@@ -12,10 +12,15 @@ COPY src ./src
 COPY serving ./serving
 COPY docker/serve /usr/local/bin/serve
 
+# RUN chmod +x /usr/local/bin/serve \
+#  && useradd --create-home --uid 1000 app \
+#  && mkdir -p /app/logs /opt/ml/model \
+#  && chown -R app:app /app
+# USER app
 RUN chmod +x /usr/local/bin/serve \
  && useradd --create-home --uid 1000 app \
  && mkdir -p /app/logs /opt/ml/model \
- && chown -R app:app /app
+ && chown -R app:app /app /opt/ml/model
 USER app
 
 EXPOSE 8080

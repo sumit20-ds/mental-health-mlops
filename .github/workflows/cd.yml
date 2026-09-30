@@ -68,11 +68,18 @@ jobs:
           aws s3 cp build/model.tar.gz "s3://${S3_BUCKET}/models/${GITHUB_SHA}/model.tar.gz"
           echo "MODEL_DATA=s3://${S3_BUCKET}/models/${GITHUB_SHA}/model.tar.gz" >> "$GITHUB_ENV"
 
+      # - name: Deploy / update SageMaker endpoint
+      #   run: |
+      #     python deploy/sagemaker/deploy.py \
+      #       --endpoint-name "$ENDPOINT" --image-uri "$IMAGE_URI" --model-data "$MODEL_DATA" \
+      #       --role-arn "${{ secrets.SAGEMAKER_ROLE_ARN }}" --region "$AWS_REGION" --mode serverless
+      
       - name: Deploy / update SageMaker endpoint
         run: |
           python deploy/sagemaker/deploy.py \
             --endpoint-name "$ENDPOINT" --image-uri "$IMAGE_URI" --model-data "$MODEL_DATA" \
-            --role-arn "${{ secrets.SAGEMAKER_ROLE_ARN }}" --region "$AWS_REGION" --mode serverless
+            --role-arn "${{ secrets.SAGEMAKER_ROLE_ARN }}" --region "$AWS_REGION" \
+            --mode realtime --instance-type ml.t2.medium
 
       - name: Smoke test live endpoint
         run: python deploy/sagemaker/invoke.py --endpoint-name "$ENDPOINT" --region "$AWS_REGION"

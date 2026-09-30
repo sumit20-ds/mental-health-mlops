@@ -51,10 +51,26 @@ def main() -> int:
                 "CaptureContentTypeHeader": {"JsonContentTypes": ["application/json"]}}
     sm.create_endpoint_config(EndpointConfigName=model_name, ProductionVariants=[variant], **config_kwargs)
 
+    # try:
+    #     sm.describe_endpoint(EndpointName=a.endpoint_name)
+    #     sm.update_endpoint(EndpointName=a.endpoint_name, EndpointConfigName=model_name)  # zero-downtime swap
+    #     print(f"Updating endpoint {a.endpoint_name} -> {model_name}")
+    # except ClientError as exc:
+    #     if "Could not find endpoint" not in str(exc):
+    #         raise
+    #     sm.create_endpoint(EndpointName=a.endpoint_name, EndpointConfigName=model_name)
+    #     print(f"Creating endpoint {a.endpoint_name}")
     try:
-        sm.describe_endpoint(EndpointName=a.endpoint_name)
-        sm.update_endpoint(EndpointName=a.endpoint_name, EndpointConfigName=model_name)  # zero-downtime swap
-        print(f"Updating endpoint {a.endpoint_name} -> {model_name}")
+        desc = sm.describe_endpoint(EndpointName=a.endpoint_name)
+        if desc["EndpointStatus"] == "Failed":
+            print(f"Endpoint {a.endpoint_name} is in Failed state; deleting before recreate")
+            sm.delete_endpoint(EndpointName=a.endpoint_name)
+            sm.get_waiter("endpoint_deleted").wait(EndpointName=a.endpoint_name)
+            sm.create_endpoint(EndpointName=a.endpoint_name, EndpointConfigName=model_name)
+            print(f"Creating endpoint {a.endpoint_name} -> {model_name}")
+        else:
+            sm.update_endpoint(EndpointName=a.endpoint_name, EndpointConfigName=model_name)
+            print(f"Updating endpoint {a.endpoint_name} -> {model_name}")
     except ClientError as exc:
         if "Could not find endpoint" not in str(exc):
             raise

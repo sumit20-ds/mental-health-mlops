@@ -1,4 +1,23 @@
 #!/bin/sh
 # SageMaker starts the container as `docker run <image> serve`; locally we run it without args.
-# Extra args are ignored on purpose.
+
+# For standalone public hosting (e.g. Render) with no volume-mounted model:
+# pull the trained artifacts from S3 once at container start.
+if [ -n "$MODEL_S3_URI" ] && [ ! -f "${MODEL_DIR:-/opt/ml/model}/model.joblib" ]; then
+  echo "Bootstrapping model from $MODEL_S3_URI ..."
+  python -c "
+import boto3, tarfile, os, io
+uri = os.environ['MODEL_S3_URI']
+bucket, key = uri[5:].split('/', 1)
+dest = os.environ.get('MODEL_DIR', '/opt/ml/model')
+os.makedirs(dest, exist_ok=True)
+buf = io.BytesIO()
+boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1')).download_fileobj(bucket, key, buf)
+buf.seek(0)
+with tarfile.open(fileobj=buf, mode='r:gz') as tar:
+    tar.extractall(dest)
+print('Model bootstrap complete:', os.listdir(dest))
+"
+fi
+
 exec uvicorn serving.app:app --host 0.0.0.0 --port "${PORT:-8080}" --workers 1

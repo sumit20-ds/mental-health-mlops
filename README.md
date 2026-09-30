@@ -26,7 +26,7 @@ flowchart LR
 | Model serving | FastAPI + Pydantic v2 validation, batch endpoint, SageMaker contract (`/ping`, `/invocations`) | `serving/` |
 | Containerisation | one slim non-root image for local **and** SageMaker | `Dockerfile`, `docker/` |
 | CI/CD | lint → tests → quick train → image build → container smoke test → (main) full train → ECR → S3 → SageMaker → live smoke test; AWS via OIDC (no keys) | `.github/workflows/` |
-| Cloud deployment | AWS SageMaker (serverless by default, real-time + Data Capture optional) | `deploy/` |
+| Cloud deployment | AWS SageMaker real-time (`ml.t2.medium`) — serverless was evaluated but its cold-start window is too tight for this dependency stack; see Known Limitations | `deploy/` |
 | Monitoring | Prometheus metrics, Grafana dashboard, alert rules, PSI + KS drift, prediction logs, CloudWatch on AWS | `src/drift.py`, `monitoring/` |
 | UI | Streamlit: animated gauge, sensitivity "nudges", what-if lab, live drift page, model card | `ui/` |
 
@@ -114,7 +114,7 @@ make teardown ENDPOINT=student-mental-health-endpoint      # deletes endpoint, c
 # optional: aws ecr delete-repository --repository-name student-mental-health-api --force
 #           aws s3 rb s3://<bucket> --force
 ```
-Serverless endpoints cost nothing while idle, but delete when you're done showcasing.
+Real-time endpoints bill continuously while `InService` (no scale-to-zero). Run `make teardown ENDPOINT=student-mental-health-endpoint` when you're done demoing, and redeploy via Actions → CD → *Run workflow* before your next session (~4–5 min).
 
 ---
 
@@ -143,7 +143,7 @@ Serverless endpoints cost nothing while idle, but delete when you're done showca
 
 ## Resume bullets (adapt to your numbers)
 * Built an end-to-end MLOps pipeline for a student wellbeing regression model (R² 0.89): **MLflow** experiment tracking + model registry with automated champion promotion and a CI quality gate.
-* Served the model via **FastAPI** (Pydantic validation, batch + SageMaker-compatible `/invocations`) in a single **Docker** image reused locally and on **AWS SageMaker** (serverless inference).
+* Served the model via **FastAPI** (Pydantic validation, batch + SageMaker-compatible `/invocations`) in a single **Docker** image reused locally and on **AWS SageMaker** (real-time inference; evaluated and rejected serverless due to cold-start constraints for this dependency stack).
 * Implemented **GitHub Actions CI/CD**: lint, tests, container smoke tests, then automated train → ECR → S3 → SageMaker deploy with **OIDC** (no static AWS keys).
 * Added **model monitoring**: Prometheus/Grafana metrics + alert rules, PSI/KS data & prediction drift on a rolling window, CloudWatch prediction logs.
 * Designed an animated **Streamlit** app with sensitivity analysis, what-if simulations, and a live drift dashboard.

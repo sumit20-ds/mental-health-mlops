@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+import os
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -127,6 +128,15 @@ def sweep(payload_json: str, field: str, values: tuple) -> list[float]:
 
 
 # ------------------------------------------------------------------------------------------- sidebar
+sagemaker_configured = bool(os.getenv("SAGEMAKER_ENDPOINT"))
+fastapi_configured = os.getenv("API_URL", "http://localhost:8000") != "http://localhost:8000"
+if sagemaker_configured and fastapi_configured:
+    choice = st.session_state.get("backend_choice", os.getenv("PREDICT_BACKEND", "sagemaker"))
+    choice = st.sidebar.radio("Backend", ["sagemaker", "fastapi"],
+                              index=["sagemaker", "fastapi"].index(choice),
+                              format_func=lambda m: "☁️ AWS SageMaker" if m == "sagemaker" else "🖥️ FastAPI (full monitoring)")
+    st.session_state["backend_choice"] = choice
+    backend.mode = choice
 health = backend.health()
 info = backend.info()
 with st.sidebar:

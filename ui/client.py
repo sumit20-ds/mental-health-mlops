@@ -19,6 +19,15 @@ class Backend:
         self.endpoint = os.getenv("SAGEMAKER_ENDPOINT", "student-mental-health-endpoint")
         self.region = os.getenv("AWS_REGION", "us-east-1")
         self._runtime = None
+    def _aws_kwargs(self) -> dict:
+        try:
+            import streamlit as st
+            key, secret = st.secrets.get("AWS_ACCESS_KEY_ID"), st.secrets.get("AWS_SECRET_ACCESS_KEY")
+            if key and secret:
+                return {"aws_access_key_id": key, "aws_secret_access_key": secret}
+        except Exception:
+            pass
+        return {}
 
     # ---- helpers -------------------------------------------------------------------------------
     def _get(self, path: str, **kw):
@@ -31,10 +40,17 @@ class Backend:
         r.raise_for_status()
         return r.json()
 
+    # def _invoke_sagemaker(self, records: list[dict]) -> list[float]:
+    #     if self._runtime is None:
+    #         import boto3
+    #         self._runtime = boto3.client("sagemaker-runtime", region_name=self.region)
+    #     resp = self._runtime.invoke_endpoint(EndpointName=self.endpoint, ContentType="application/json",
+    #                                          Body=json.dumps({"instances": records}))
+    #     return json.loads(resp["Body"].read())["predictions"]
     def _invoke_sagemaker(self, records: list[dict]) -> list[float]:
         if self._runtime is None:
             import boto3
-            self._runtime = boto3.client("sagemaker-runtime", region_name=self.region)
+            self._runtime = boto3.client("sagemaker-runtime", region_name=self.region, **self._aws_kwargs())
         resp = self._runtime.invoke_endpoint(EndpointName=self.endpoint, ContentType="application/json",
                                              Body=json.dumps({"instances": records}))
         return json.loads(resp["Body"].read())["predictions"]
@@ -44,11 +60,21 @@ class Backend:
     def supports_monitoring(self) -> bool:
         return self.mode == "fastapi"
 
+    # def health(self) -> dict | None:
+    #     try:
+    #         if self.mode == "sagemaker":
+    #             import boto3
+    #             status = boto3.client("sagemaker", region_name=self.region).describe_endpoint(
+    #                 EndpointName=self.endpoint)["EndpointStatus"]
+    #             return {"status": "ok" if status == "InService" else status, "model": f"sagemaker:{self.endpoint}"}
+    #         return self._get("/health")
+    #     except Exception:
+    #         return None
     def health(self) -> dict | None:
         try:
             if self.mode == "sagemaker":
                 import boto3
-                status = boto3.client("sagemaker", region_name=self.region).describe_endpoint(
+                status = boto3.client("sagemaker", region_name=self.region, **self._aws_kwargs()).describe_endpoint(
                     EndpointName=self.endpoint)["EndpointStatus"]
                 return {"status": "ok" if status == "InService" else status, "model": f"sagemaker:{self.endpoint}"}
             return self._get("/health")
